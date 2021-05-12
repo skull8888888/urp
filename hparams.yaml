@@ -1,0 +1,19 @@
+backbone: resnet18
+
+d_model: 512
+seq_l: 8
+n_head: 4
+
+lr: 7.0e-4
+l2: 1.0e-8
+stride: 0.1
+
+div_factor: 25
+final_div_factor: 100
+pct_start: 0.2
+warmup: 1.0e+4
+anneal: cos
+
+batch_size: 32
+epochs: 20
+p: 0.0
