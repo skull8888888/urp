@@ -33,26 +33,19 @@ def main():
 
     num_workers = 11
     
-    
+    # f1t dataset
     train_df = pd.read_csv('data/train_norm_denoised.csv')
     val_df = pd.read_csv('data/val_norm_denoised.csv')
 
     train_dataset = TrainDataset('data/train/', train_df, seq_l)
     val_dataset = TestDataset('data/val/', val_df)
     
+#     # DIPLECS indoor dataset
 #     train_df = pd.read_csv("PShape/train_1315584123/1315584123.csv")
 #     val_df = pd.read_csv('PShape/valid_1315584542/1315584542.csv')
 
 #     train_dataset = DIPLECSTrainDataset("PShape/train_1315584123/", "1315584123", train_df, seq_l)
 #     val_dataset = DIPLECSTestDataset("PShape/valid_1315584542/", "1315584542", val_df)
-
-#     train_loader = DataLoader(
-#         train_dataset, 
-#         batch_size=batch_size, 
-#         shuffle=True, 
-#         drop_last=True, 
-#         num_workers=num_workers, 
-#         pin_memory=True)
 
     train_loader = DataLoader(
         train_dataset, 
@@ -67,7 +60,7 @@ def main():
         val_dataset, 
         batch_size=1, 
         shuffle=False, 
-        drop_last=True, 
+        drop_last=False, 
         num_workers=num_workers, 
         pin_memory=True)
 

@@ -29,7 +29,11 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
 #         print(x.shape, self.pe[:x.size(0), :].shape, self.pe.shape)
+
+        assert x.size(0) <= self.pe.size(0)
+        
         x = x + self.pe[:x.size(0), :]
+                  
         return self.dropout(x)
 
 
@@ -160,10 +164,12 @@ class Decoder(nn.Module):
         
         self.encoder_pos_emb = PositionalEncoding(d_model, max_len=seq_l)
         self.decoder_pos_emb = PositionalEncoding(d_model, max_len=seq_l)
-          
-        self.register_buffer('bins', torch.arange(-1-stride/2, 1+stride/2, stride))
+        
+#         bins = torch.arange(-1-stride/2, 1+stride/2, stride)
+        bins = torch.Tensor([-1.1, -0.5, 0.5, 1.1])
+        self.register_buffer('bins', bins)
     
-        self.embedding = nn.Embedding(len(self.bins) + 1, d_model) # + 1 because of REG token
+        self.embedding = nn.Embedding(len(self.bins), d_model) # + 1 because of REG token
         
         
         nn.init.normal_(self.embedding.weight, std=0.02)
@@ -205,10 +211,12 @@ class Decoder(nn.Module):
         
         batch_size = steer_angles.size(0)
         
-        steer_tokens = torch.bucketize(steer_angles, self.bins) + 1
-        reg_token = torch.zeros(batch_size,1).type_as(steer_angles).long()
+        steer_tokens = torch.bucketize(steer_angles, self.bins)
         
-        
+        assert steer_tokens.max().item() <= len(self.bins) 
+
+        reg_token = torch.zeros(batch_size,1).type_as(steer_angles).long() # 0 REG token
+
         tokens = torch.cat([steer_tokens, reg_token], dim=-1)
         
         return tokens

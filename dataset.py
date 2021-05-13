@@ -57,8 +57,10 @@ class TrainDataset(Dataset):
             X.append(x)
         
         X = torch.stack(X, dim=0)
+         
+        all_steer = np.clip(all_steer,-1.0, 1.0)
         
-        steer_angles = torch.LongTensor(all_steer[:-1])
+        steer_angles = torch.FloatTensor(all_steer[:-1])
 
         last_steer = torch.FloatTensor([all_steer[-1]])
         
@@ -138,8 +140,9 @@ class DIPLECSTrainDataset(Dataset):
         
         X = torch.stack(X, dim=0)
         
-        steer_angles = torch.LongTensor(all_steer[:-1])
+        all_steer = np.clip(all_steer,-1.0, 1.0)
 
+        steer_angles = torch.FloatTensor(all_steer[:-1])
         last_steer = torch.FloatTensor([all_steer[-1]])
         
         return X, last_steer, steer_angles
@@ -166,13 +169,14 @@ class DIPLECSTestDataset(Dataset):
     def __getitem__(self, index):
         
 
-        img_index = str(index+1).zfill(6)
+        img_index = self.df.iloc[index].image_id
 
-        img_path = self.data_dir + self.prefix + "Image" + img_index + '.jpg'
+        img_path = self.data_dir + self.prefix + img_index
+        
         img = cv2.imread(img_path)
-
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (320, 240,))
+
         x = self.transform(img)
         
         steer = self.df.iloc[index].data
