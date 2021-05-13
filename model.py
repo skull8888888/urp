@@ -28,9 +28,6 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-#         print(x.shape, self.pe[:x.size(0), :].shape, self.pe.shape)
-
-        assert x.size(0) <= self.pe.size(0)
         
         x = x + self.pe[:x.size(0), :]
                   
@@ -77,11 +74,7 @@ class ResidualEncoderAttentionBlock(nn.Module):
     
     def attention(self, x):
 
-        if self.attn_mask != None:
-            attn_mask = self.attn_mask.type_as(x)
-            return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
-
-        return self.attn(x, x, x, need_weights=False)[0]
+        return self.attn(x, x, x, need_weights=False, attn_mask=None)[0]
 
     
     def forward(self, x):    
@@ -127,7 +120,7 @@ class ResidualDecoderAttentionBlock(nn.Module):
         nn.init.normal_(self.mlp.c_proj.weight, std=proj_std)
         
             
-    def forward(self, dec_input, enc_output, mask=None, pad_mask=None):
+    def forward(self, dec_input: torch.Tensor, enc_output: torch.Tensor):
                 
         x = self.ln_1(dec_input)
         
@@ -156,7 +149,13 @@ class Backbone(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, d_model: int, n_head: int, seq_l: int, stride: int, p=0.1):
+    
+    # needed for torch.jit.script conversion
+    __annotations__ = {
+        "p" : float
+    }
+    
+    def __init__(self, d_model: int, n_head: int, seq_l: int, stride: int, p:float = 0.1):
         super().__init__()
         
         self.p = p
@@ -165,7 +164,6 @@ class Decoder(nn.Module):
         self.encoder_pos_emb = PositionalEncoding(d_model, max_len=seq_l)
         self.decoder_pos_emb = PositionalEncoding(d_model, max_len=seq_l)
         
-#         bins = torch.arange(-1-stride/2, 1+stride/2, stride)
         bins = torch.Tensor([-1.1, -0.5, 0.5, 1.1])
         self.register_buffer('bins', bins)
     
@@ -173,11 +171,7 @@ class Decoder(nn.Module):
         
         
         nn.init.normal_(self.embedding.weight, std=0.02)
-        
-#         mask = (torch.triu(torch.ones(seq_l, seq_l)) == 1).transpose(0, 1)
-#         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-#         mask = None
-    
+            
         self.encoder = ResidualEncoderAttentionBlock(d_model, n_head, attn_mask=None)
         self.decoder = ResidualDecoderAttentionBlock(d_model, n_head)
 
@@ -186,9 +180,7 @@ class Decoder(nn.Module):
         
         
     def encode_frames(self, x):
-                
-        # x: (batch_size, L, d_model)
-        
+           
         x = x.transpose(0,1) # (L, batch_size, d_model)    
         
         x = self.encoder_pos_emb(x)
@@ -212,8 +204,6 @@ class Decoder(nn.Module):
         batch_size = steer_angles.size(0)
         
         steer_tokens = torch.bucketize(steer_angles, self.bins)
-        
-        assert steer_tokens.max().item() <= len(self.bins) 
 
         reg_token = torch.zeros(batch_size,1).type_as(steer_angles).long() # 0 REG token
 
@@ -224,21 +214,16 @@ class Decoder(nn.Module):
         
         
     def forward(self, frames: torch.Tensor, steer_angles: torch.Tensor):
-        
-        # img: (batch_size, seq_l, d_model)
-        # steer_token: (batch_size, seq_l-1, d_model)
-        
-        assert frames.size(1) == self.seq_l
-        assert steer_angles.size(1) == self.seq_l - 1
+        '''
+        img: (batch_size, seq_l, d_model)
+        steer_token: (batch_size, seq_l-1, d_model)
+        '''
         
         steer_tokens = self.tokenize(steer_angles) # needed for pytorch lightning
         
         frames_enc = self.encode_frames(frames) # (L, batch_size, d_model)
         steer_enc = self.encode_steer(steer_tokens) # (L, batch_size, d_model) because added REG token
 
-#         print(steer_enc.shape)
-        assert steer_enc.size(0) == self.seq_l
-        
         x = self.decoder(steer_enc, frames_enc)
         x = x.transpose(0,1) # (batch_size, 1, d_model)
         
