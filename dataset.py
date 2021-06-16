@@ -14,28 +14,31 @@ from config import CONFIG
 import cv2
 import math
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
 class TrainDataset(Dataset):
 
-    def __init__(self, data_dir, df, seq_l, train=True):
+    def __init__(self, data_dir, df, seq_l, resize=None):
 
+        self.resize = resize
         self.data_dir = data_dir
         
         self.df = df
         self.shifted_df = df[seq_l - 1:].reset_index()
         self.seq_l = seq_l
-        self.train = train
-        
-        self.train_tf = transforms.Compose([
-            transforms.ColorJitter(brightness=0.05, contrast=0.1),
-#             transforms.RandomCut(4)
+
+        self.transform = A.Compose([
+            A.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3, p=0.5),
+            A.CoarseDropout(max_holes=8, max_height=8, max_width=8, p=0.5),
+            A.GaussNoise(var_limit=1, p=0.5),
+            A.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ToTensorV2()
         ])
-    
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-        
-        
+                
     def __len__(self):
         return len(self.shifted_df)
      
@@ -45,16 +48,25 @@ class TrainDataset(Dataset):
         
         X = []
         all_steer = []
-
+        
+        
         for i in reversed(range(self.seq_l)):
-
-            all_steer.append(self.df.data.loc[start_index - i])
             
-            img_index = str(start_index - i).zfill(4)
-            img = Image.open(self.data_dir + img_index + '.jpg')
+            steer = self.df.steer.iloc[start_index - i]
+            img_id = self.df.image_id.iloc[start_index - i]
+            
+            all_steer.append(steer)
+            
+            img_path = self.data_dir + img_id
+            
+            img = cv2.imread(img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            if not self.resize is None:
+                img = cv2.resize(img, self.resize)
 
-            x = self.transform(img)
-            X.append(x)
+            img = self.transform(image=img)["image"]
+
+            X.append(img)
         
         X = torch.stack(X, dim=0)
          
@@ -66,11 +78,68 @@ class TrainDataset(Dataset):
         
         return X, last_steer, steer_angles
 
+class TrainOversampledDataset(Dataset):
 
+    def __init__(self, data_dir, df, os_df, seq_l):
+
+        self.data_dir = data_dir
+        
+        self.df = df
+        self.shifted_df = os_df[seq_l - 1:]
+        self.seq_l = seq_l
+
+        self.transform = A.Compose([
+            A.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3, p=0.5),
+            A.CoarseDropout(max_holes=8, max_height=8, max_width=8, p=0.5),
+            A.GaussNoise(var_limit=1, p=0.5),
+            A.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ToTensorV2()
+        ])
+                
+    def __len__(self):
+        return len(self.shifted_df)
+     
+    def __getitem__(self, index):
+        
+        start_index = self.shifted_df["index"].iloc[index]
+        
+        X = []
+        all_steer = []
+        
+        for i in reversed(range(self.seq_l)):
+            
+            steer = self.df.steer.iloc[start_index - i]
+            img_id = self.df.image_id.iloc[start_index - i]
+            
+            all_steer.append(steer)
+            
+            img_path = self.data_dir + img_id
+            
+            img = cv2.imread(img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+            img = self.transform(image=img)["image"]
+
+            X.append(img)
+        
+        X = torch.stack(X, dim=0)
+         
+        all_steer = np.clip(all_steer,-1.0, 1.0)
+        
+        steer_angles = torch.FloatTensor(all_steer[:-1])
+
+        last_steer = torch.FloatTensor([all_steer[-1]])
+        
+        return X, last_steer, steer_angles
+    
 class TestDataset(Dataset):
 
-    def __init__(self, data_dir, df):
+    def __init__(self, data_dir, df, resize=None):
 
+        self.resize = resize
         self.data_dir = data_dir
         
         self.df = df.reset_index()
@@ -85,15 +154,20 @@ class TestDataset(Dataset):
      
     def __getitem__(self, index):
         
-        start_index = self.df['index'].iloc[index]
-        img_index = str(start_index).zfill(4)
-        img = Image.open(self.data_dir + img_index + '.jpg')
+        steer = self.df.steer.iloc[index]
+        
+        img_id = self.df.image_id.iloc[index]
+        img_path = self.data_dir + img_id
+        
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        if not self.resize is None:
+            img = cv2.resize(img, self.resize)
+        
         x = self.transform(img)
         
-        last_steer = self.df.data.loc[index]
-        
-        return x, last_steer 
-        
+        return x, steer 
         
         
 class DIPLECSTrainDataset(Dataset):

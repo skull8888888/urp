@@ -1,17 +1,19 @@
 backbone: resnet18
 
+# d_encoder: 512
+# d_decoder: 128
 d_model: 512
+
 seq_l: 8
 n_head: 4
 
-lr: 7.0e-4
-l2: 1.0e-8
-stride: 0.1
+lr: 2.5e-4
+l2: 1.0e-5
+bins: [-1.1, -0.75, -0.5, -0.25, -0.05, 0.05, 0.10, 0.15, 0.25, 0.5, 1.1]
 
 div_factor: 25
-final_div_factor: 100
-pct_start: 0.2
-warmup: 1.0e+4
+final_div_factor: 50
+pct_start: 0.25
 anneal: cos
 
 batch_size: 32

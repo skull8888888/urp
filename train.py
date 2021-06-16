@@ -16,7 +16,7 @@ import numpy as np
 import math
 from pytorch_lightning.callbacks import ModelCheckpoint
 from config import CONFIG
-from dataset import TrainDataset, TestDataset, DIPLECSTrainDataset, DIPLECSTestDataset
+from dataset import TrainDataset, TrainOversampledDataset, TestDataset, DIPLECSTrainDataset, DIPLECSTestDataset
 from attrdict import AttrDict
 
 seed_everything(42)
@@ -33,20 +33,21 @@ def main():
 
     num_workers = 11
     
-    # f1t dataset
-    train_df = pd.read_csv('data/train_norm_denoised.csv')
-    val_df = pd.read_csv('data/val_norm_denoised.csv')
+#     # f1t dataset
+#     train_df = pd.read_csv('data/train_norm_denoised.csv')
+#     os_df = pd.read_csv('data/train_os.csv')
+#     val_df = pd.read_csv('data/val_norm_denoised.csv')
 
-    train_dataset = TrainDataset('data/train/', train_df, seq_l)
-    val_dataset = TestDataset('data/val/', val_df)
+#     train_dataset = TrainOversampledDataset('data/train/', train_df, os_df, seq_l)
+#     val_dataset = TestDataset('data/val/', val_df)
     
-#     # DIPLECS indoor dataset
-#     train_df = pd.read_csv("PShape/train_1315584123/1315584123.csv")
-#     val_df = pd.read_csv('PShape/valid_1315584542/1315584542.csv')
+     # f1t dataset
+    train_df = pd.read_csv('./PShape/train_1315584123/1315584123.csv')
+    val_df = pd.read_csv('./PShape/val_1315584542/1315584542.csv')
 
-#     train_dataset = DIPLECSTrainDataset("PShape/train_1315584123/", "1315584123", train_df, seq_l)
-#     val_dataset = DIPLECSTestDataset("PShape/valid_1315584542/", "1315584542", val_df)
-
+    train_dataset = TrainDataset('./PShape/train_1315584123/1315584123', train_df, seq_l, resize=(320, 240))
+    val_dataset = TestDataset('./PShape/val_1315584542/1315584542', val_df, resize=(320, 240))
+    
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
@@ -65,6 +66,8 @@ def main():
         pin_memory=True)
 
     model = Model(cfg, len(train_loader))
+#     model = Model.load_from_checkpoint(checkpoint_path="lightning_logs/version_21/checkpoints/epoch=18-val_loss=0.0836.ckpt", cfg=cfg, train_loader_len=len(train_loader), strict=False)
+    model.train()
 
     val_acc_callback = ModelCheckpoint(
         monitor='val_loss', 
@@ -79,7 +82,7 @@ def main():
         accelerator='ddp',
         callbacks=[val_acc_callback], 
         max_epochs=epochs,
-#         precision=16,
+        precision=16,
         num_sanity_val_steps=seq_l * 2)
 
     trainer.fit(model, train_loader, val_loader)
