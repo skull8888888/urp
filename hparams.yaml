@@ -1,4 +1,6 @@
 backbone: resnet18
+img_width: 
+img_height:
 
 # d_encoder: 512
 # d_decoder: 128
