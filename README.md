@@ -7,3 +7,4 @@ Recently, Transformer [1] models demonstrated incredible performance in the natu
 
 This work proposes to treat steering angles as tokens, similar to language models, and introduces a transformer encoder-decoder inspired model, which predicts a current steering angle by attending to both previous angles and image frames using special [REG] token. Moreover, the proposed method not only shows great results, in terms of the stability and accuracy, on the prerecorded dataset of the RC car based on the Jetson Xavier NX [3], but is capable of driving the RC car in real-time on the left-turn biased track with hard ninety degree turns. 
 
+![img](https://github.com/skull8888888/urp/blob/main/image.png)
