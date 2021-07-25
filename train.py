@@ -33,20 +33,34 @@ def main():
 
     num_workers = 11
     
-#     # f1t dataset
-#     train_df = pd.read_csv('data/train_norm_denoised.csv')
-#     os_df = pd.read_csv('data/train_os.csv')
-#     val_df = pd.read_csv('data/val_norm_denoised.csv')
+# #     # f1t dataset
+#     train_df = pd.read_csv('455_data/train_norm_denoised.csv')
+#     os_df = pd.read_csv('455_data/train_os.csv')
+#     val_df = pd.read_csv('455_data/val_norm_denoised.csv')
 
-#     train_dataset = TrainOversampledDataset('data/train/', train_df, os_df, seq_l)
-#     val_dataset = TestDataset('data/val/', val_df)
+#     train_dataset = TrainOversampledDataset('455_data/train/', train_df, os_df, seq_l)
+# #     train_dataset = TrainDataset('455_data/train/', train_df, seq_l)
+#     val_dataset = TestDataset('455_data/val/', val_df)
     
-     # f1t dataset
-    train_df = pd.read_csv('./PShape/train_1315584123/1315584123.csv')
-    val_df = pd.read_csv('./PShape/val_1315584542/1315584542.csv')
+     # DIPLECS dataset
+#     train_df = pd.read_csv('./PShape/train_1315584123/1315584123.csv')
+#     val_df = pd.read_csv('./PShape/val_1315584542/1315584542.csv')
 
-    train_dataset = TrainDataset('./PShape/train_1315584123/1315584123', train_df, seq_l, resize=(320, 240))
-    val_dataset = TestDataset('./PShape/val_1315584542/1315584542', val_df, resize=(320, 240))
+#     train_dataset = TrainDataset('./PShape/train_1315584123/1315584123', train_df, seq_l, resize=(320, 240))
+#     val_dataset = TestDataset('./PShape/val_1315584542/1315584542', val_df, resize=(320, 240))
+    
+    
+    # COMMA dataset
+    data_dir = 'comma/research/data/2016-01-30--11-24-51/'
+    df = pd.read_csv(data_dir + 'data_norm_cut.csv')
+    
+    n = len(df)
+    print(n)
+    train_df = df[:int(0.9 * n)]
+    val_df = df[int(0.9 * n):int(0.95 * n)].reset_index(drop=True)
+
+    train_dataset = TrainDataset(data_dir + 'images/', train_df, seq_l)
+    val_dataset = TestDataset(data_dir + 'images/', val_df)
     
     train_loader = DataLoader(
         train_dataset, 
@@ -59,7 +73,7 @@ def main():
 
     val_loader = DataLoader(
         val_dataset, 
-        batch_size=1, 
+        batch_size=1,
         shuffle=False, 
         drop_last=False, 
         num_workers=num_workers, 

@@ -107,7 +107,7 @@ class ResidualDecoderAttentionBlock(nn.Module):
         
     def initialize_parameters(self):
 
-        proj_std = (self.d_model ** -0.5) * ((2 * 1) ** -0.5)
+        proj_std = (self.d_model ** -0.5) * (2 ** -0.5)
         attn_std = self.d_model ** -0.5
         fc_std = (2 * self.d_model) ** -0.5
 
@@ -158,14 +158,15 @@ class AttentionPool2d(nn.Module):
         return x[0]
     
 class Backbone(nn.Module):
-    def __init__(self, backbone):
+    def __init__(self, backbone, img_width=320, img_height=90, img_scale_factor=32):
         super().__init__()
         
         backbone = timm.create_model(backbone, pretrained=True) 
         self.backbone = nn.Sequential(*list(backbone.children())[:-2])
         
 #         self.attn_pool = AttentionPool2d(30, 512, 4) # F1
-        self.attn_pool = AttentionPool2d(80, 512, 4) # DIPLECS
+        l = math.ceil(img_width / img_scale_factor) * math.ceil(img_height / img_scale_factor)
+        self.attn_pool = AttentionPool2d(l, 512, 4) # DIPLECS
                 
     def forward(self, x):        
         
@@ -266,8 +267,13 @@ class Model(pl.LightningModule):
         self.train_loader_len = train_loader_len
         
         self.save_hyperparameters(cfg)
+#         print(self.hparams)
+        self.backbone = Backbone(
+            self.hparams.backbone, 
+            img_width=self.hparams.img_width, 
+            img_height=self.hparams.img_height, 
+            img_scale_factor=self.hparams.img_scale_factor)
         
-        self.backbone = Backbone(self.hparams.backbone)
         self.decoder = Decoder(self.hparams.d_model, self.hparams.n_head, self.hparams.seq_l, len(self.hparams.bins), p=self.hparams.p)
         
         self.frames_cache = []
@@ -295,21 +301,28 @@ class Model(pl.LightningModule):
         steer_tokens = self.tokenize(steer_angles)
         y_hat = self.decoder(x, steer_tokens)
         
-        reg_loss = F.l1_loss(y_hat, last_steer.flatten())
-        
-#         print(y_hat_token.shape, self.tokenize(last_steer).flatten().shape)
-#         assert False
-        
-#         cls_loss = F.cross_entropy(y_hat_token, self.tokenize(last_steer).flatten())
+        reg_loss = F.l1_loss(y_hat * 50, last_steer.flatten() * 50)
          
         lr = self.scheduler.get_last_lr()[0]
         self.log('lr', lr, prog_bar=True)
         
         return reg_loss
-#         alpha = 0.75
+    
+#     def validation_step(self, batch, batch_nb):
         
-#         return alpha * reg_loss + (1 - alpha) * cls_loss
-           
+#         imgs, last_steer, steer_angles = batch
+        
+#         x = []
+        
+#         for i in range(imgs.size(1)):
+#             x.append(self.backbone(imgs[:,i,:,:,:]))
+#         x = torch.stack(x, dim=1)
+        
+#         steer_tokens = self.tokenize(steer_angles)
+#         y_hat = self.decoder(x, steer_tokens)
+        
+#         return {'pred': y_hat.flatten().detach().cpu().numpy(), 'target': last_steer.flatten().detach().cpu().numpy()}
+               
     def validation_step(self, batch, batch_nb):
         
         img, steer = batch 
@@ -343,8 +356,8 @@ class Model(pl.LightningModule):
     
     def validation_epoch_end(self, outputs):
         
-        pred = np.array([x['pred'] for x in outputs])
-        target = np.array([x['target'] for x in outputs])
+        pred = np.array([x['pred'] for x in outputs]) * 50
+        target = np.array([x['target'] for x in outputs]) * 50
         
         l1 = np.abs(target - pred).mean()
         
@@ -352,10 +365,6 @@ class Model(pl.LightningModule):
 
         self.frames_cache = []
         self.angles_cache = []
-        
-#         with open("test/" + str(round(l1,4)) + ".txt", "w") as f:
-#             for x in pred:
-#                 f.write(str(round(x,4)) + '\n') 
     
 #     def optimizer_step(self, current_epoch, batch_nb, optimizer, optimizer_i, second_order_closure=None, on_tpu=False, using_native_amp=True, using_lbfgs=False):
                 

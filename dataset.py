@@ -29,9 +29,9 @@ class TrainDataset(Dataset):
         self.seq_l = seq_l
 
         self.transform = A.Compose([
-            A.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3, p=0.5),
+            A.ColorJitter(brightness=0.5, contrast=0.5, p=0.5),
             A.CoarseDropout(max_holes=8, max_height=8, max_width=8, p=0.5),
-            A.GaussNoise(var_limit=1, p=0.5),
+            A.GaussNoise(var_limit=1, p=0.75),
             A.Normalize(
                     mean=[0.485, 0.456, 0.406],
                     std=[0.229, 0.224, 0.225],
