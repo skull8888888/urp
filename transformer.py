@@ -140,8 +140,6 @@ class Encoder(nn.Module):
         
         self.pos_emb = PositionalEncoding(d_model, max_len=seq_l)
             
-        nn.init.normal_(self.embedding.weight, std=0.02)
-        
         self.blocks = nn.Sequential(*[ResidualEncoderAttentionBlock(d_model, n_head, attn_mask=attn_mask) for _ in range(layers)])
     
         self.ln_post = nn.LayerNorm(d_model)
@@ -171,10 +169,10 @@ class Decoder(nn.Module):
         self.seq_l = seq_l
         
         self.pos_emb = PositionalEncoding(d_model, max_len=seq_l)
-             
-        self.embedding = nn.Linear(1, d_model) 
         
-#         nn.init.normal_(self.embedding.weight, std=0.02)
+        
+        self.sos_emb = nn.Parameter(torch.Tensor(1, d_model))
+        self.embedding = nn.Linear(1, d_model) 
             
         self.blocks = [ResidualDecoderAttentionBlock(d_model, n_head, attn_mask=attn_mask) for _ in range(layers)]
     
@@ -183,19 +181,25 @@ class Decoder(nn.Module):
         self.fc = nn.Linear(d_model, 1)
 
         
-    def forward(self, steer_angles: torch.Tensor, enc_output: torch.Tensor):
+    def forward(self, steer_angles: torch.Tensor, enc_output: torch.Tensor, cache: torch.Tensor = None):
         '''
-        img: (batch_size, seq_l, d_model)
-        steer_tokens: (batch_size, seq_l-1, d_model)
+        steer_angles: 
+
         '''
-        
+        batch_size = steer_angles.size(0)
+
         # convert angles to tokens
-        
         steer_tokens = self.embedding(steer_angles)
         
+        repeated_sos_emb = self.sos_emb.repeat(batch_size, 1, 1)
+        
+        # adding Start Of Sequence (SOS) token
+        steer_tokens = torch.cat([repeated_sos_emb, steer_tokens], dim=1)
+        
+        steer_tokens = steer_tokens.transpose(0,1) # (B,L,D) -> (L,B,D)
         x = self.pos_emb(steer_tokens)
         
-        for block in self.blocks:
+        for block_index, block in enumerate(self.blocks):
             
             x = block(x, enc_output)
         
@@ -205,6 +209,6 @@ class Decoder(nn.Module):
         
         x = F.dropout(x, training=self.training, p=self.p)
 
-        x = self.fc(x).flatten()
+        x = self.fc(x)
 
         return x
